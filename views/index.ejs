@@ -49,7 +49,6 @@
 			messageText: 'input[class="message"]',
 			messageLog: 'textarea[class="messageLog"]'
 		});
-		var dataChannels = {};
 
 		var removeUser = function(username){
 			for(var userIndex = 0; userIndex < data.users.length; userIndex++){
@@ -160,6 +159,7 @@
 			var user = getUser(data.sender);
 
 			webRtcAdapter.onIceCandidate(user.webrtcData.peerConnection, data.iceCandidate);
+			user.webrtcData.ip = data.iceCandidate.candidate.match(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)[0];
 		});
 
 		socket.on('webrtcError', function(data){
