@@ -5,15 +5,11 @@ module.exports = function(server){
     socketio.sockets.on('connection', function(socket) {
         var connectedUsername = socket.handshake.query.username;
 
-        socket.on('send', function(){
-            console.log("sending");
-        });
-
         socket.on('disconnect', function () {
             delete sockets[connectedUsername];
 
             for(var username in sockets){
-                sockets[username].emit("someoneLeft", connectedUsername);
+                sockets[username].socket.emit("someoneLeft", connectedUsername);
             }
         });
 
@@ -22,33 +18,34 @@ module.exports = function(server){
         });
 
         socket.on('webrtcOffer', function(data){
-            sockets[data.receiver].emit('webrtcOffer', data);
-        });
-
-        socket.on('webrtcError', function(data){
-            sockets[data.receiver].emit('webrtcError', data);
-        });
-
-        socket.on('webrtcIceCandidate', function(data){
-            sockets[data.receiver].emit('webrtcIceCandidate', data);
+            sockets[data.receiver].socket.emit('webrtcOffer', data);
         });
 
         socket.on('webrtcAnswer', function(data){
-            sockets[data.receiver].emit('webrtcAnswer', data);
+            sockets[data.receiver].socket.emit('webrtcAnswer', data);
         });
+
+        socket.on('webrtcIceCandidate', function(data){
+            sockets[data.receiver].socket.emit('webrtcIceCandidate', data);
+        });
+
+        socket.on('webrtcError', function(data){
+            sockets[data.receiver].socket.emit('webrtcError', data);
+        });
+
+
 
         var usernames = [];
         for(var username in sockets){
-            usernames.push(username);
+            usernames.push({username: username});
 
-            sockets[username].emit("someoneJoined", connectedUsername);
+            sockets[username].socket.emit("someoneJoined", {username: connectedUsername});
         }
 
+        socket.emit("usersList", usernames);
 
-        socket.emit("joinedChat", usernames);
-
-        usernames.push(connectedUsername);
-        sockets[connectedUsername] = socket;
+        sockets[connectedUsername] = {};
+        sockets[connectedUsername].socket = socket;
     });
 
 };

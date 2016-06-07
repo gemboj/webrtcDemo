@@ -23,7 +23,7 @@ function WebRTCAdapter(send, hostUsername, showError){
         return !!that.detectedBrowser;
     };
 
-    that.createDataChannelHost = function(receiver){
+    that.createDataChannelHost = function(receiverUsername){
         if(that.isWebRtcSupported()){
             var peerConnection = new that.peerConnection(that.config, that.constraints);
 
@@ -34,13 +34,13 @@ function WebRTCAdapter(send, hostUsername, showError){
                         id: event.candidate.sdpMid,
                         candidate: event.candidate.candidate
                     };
-                    send('webrtcIceCandidate', {sender: hostUsername, receiver: receiver, iceCandidate: iceCandidate});
+                    send('webrtcIceCandidate', {sender: hostUsername, receiver: receiverUsername, iceCandidate: iceCandidate});
                 }
             };
 
             var dataChannel = peerConnection.createDataChannel("sendDataChannel", {reliable: false});
 
-            createOffer(peerConnection, receiver);
+            createOffer(peerConnection, receiverUsername);
 
             return {peerConnection: peerConnection, dataChannel: dataChannel};
         }
@@ -48,7 +48,6 @@ function WebRTCAdapter(send, hostUsername, showError){
             showError("Cannot create peer connection");
         }
     };
-
 
 
     function createOffer(peerConnection, receiver){

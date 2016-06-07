@@ -9,6 +9,8 @@
   </head>
   <body>
 	<div>
+		Username: <p id="username"></p>
+
 		<textarea rows="20" cols="150" class="messageLog"></textarea>
 		<form onsubmit="webrtcSend(event)">
 			<input class="message" type="text" />
@@ -21,17 +23,19 @@
 		<ul id="dataChannelsList"></ul>
 	</div>
 	<script>
-		var username = ~~(Math.random() * 1000000);
-
-		var data = Bind({
+		var bindData = Bind({
+			username: username = ~~(Math.random() * 1000000),
 			users: [
 			],
-			dataChannels: [
+			webrtcDatas: [
 
 			],
 			messageText: '',
 			messageLog: ''
 		}, {
+			username: {
+				dom: "#username"
+			},
 			users: {
 				dom: '#usersList',
 				transform: function (user) {
@@ -39,7 +43,7 @@
 							'  <input value="connect" onclick="createWebRtcConnection(\'' + user.username + '\')" type="button"/></li>';
 				}
 			},
-			dataChannels: {
+			webrtcDatas: {
 				dom: '#dataChannelsList',
 				transform: function(dataChannel){
 					return '<li>User: ' + dataChannel.username +
@@ -50,27 +54,13 @@
 			messageLog: 'textarea[class="messageLog"]'
 		});
 
-		var removeUser = function(username){
-			for(var userIndex = 0; userIndex < data.users.length; userIndex++){
-				var user = data.users[userIndex];
-
-				if(user.username == username){
-					data.users.splice(userIndex, 1);
-				}
-			}
-		}
-
-		var addUser = function(username){
-			data.users.push({username: username});
-		}
-
-		var clearUsers = function(){
-			data.users = [];
-		}
+		var addUser = function(userData){
+			bindData.users.push({username: userData.username});
+		};
 
 		var getUser = function(username){
-			for(var userIndex = 0; userIndex < data.users.length; userIndex++){
-				var user = data.users[userIndex];
+			for(var userIndex = 0; userIndex < bindData.users.length; userIndex++){
+				var user = bindData.users[userIndex];
 
 				if(user.username == username){
 					return user;
@@ -78,42 +68,48 @@
 			}
 
 			return null;
-		}
+		};
 
-		var clearUserWebrtcData = function(username){
-			var user = getUser(username);
+		var removeUser = function(username){
+			for(var userIndex = 0; userIndex < bindData.users.length; userIndex++){
+				var user = bindData.users[userIndex];
 
-			if(user){
-				delete user.webrtcData;
+				if(user.username == username){
+					bindData.users.splice(userIndex, 1);
+				}
 			}
-		}
+		};
 
-		var addDataChannel = function(channel, username){
-			data.dataChannels.push({channel: channel, username: username});
-		}
+		var clearUsers = function(){
+			bindData.users = [];
+		};
 
-		var getDataChannel = function(username){
-			for(var i = 0; i < data.dataChannels.length; i++){
-				if(data.dataChannels[i].username == username){
-					return data.dataChannels[i];
+		var addWebRTCData = function(webrtcData){
+			bindData.webrtcDatas.push(webrtcData);
+		};
+
+		var getWebRTCData = function(username){
+			for(var i = 0; i < bindData.webrtcDatas.length; i++){
+				if(bindData.webrtcDatas[i].username == username){
+					return bindData.webrtcDatas[i];
 				}
 			}
 
 			return undefined;
-		}
+		};
 
-		var removeDataChannel = function(username){
-			for(var i = 0; i < data.dataChannels.length; i++){
-				if(data.dataChannels[i].username == username){
-					data.dataChannels.splice(i, 1);
+		var removeWebrtcData = function(username){
+			for(var i = 0; i < bindData.webrtcDatas.length; i++){
+				if(bindData.webrtcDatas[i].username == username){
+					bindData.webrtcDatas.splice(i, 1);
 				}
 			}
-		}
+		};
 
-		var socket = io.connect(undefined, { 'force new connection': true, query:  'username=' + username});
+		var socket = io.connect(undefined, { 'force new connection': true, query:  'username=' + bindData.username});
 
 		socket.on('connect', function(){
-			displayMessage("[info]", "Joined as: " + username + "\n")
+			displayMessage("[info]", "Joined as: " + bindData.username + "\n")
 		});
 
 		socket.on('disconnect', function(){
@@ -121,109 +117,115 @@
 			displayMessage('[info]', "disconnected");
 		});
 
-		socket.on('joinedChat', function(usernames){
+		socket.on('usersList', function(data){
 			clearUsers();
 
-			for(var index in usernames){
-				addUser(usernames[index]);
+			for(var index in data){
+				addUser(data[index]);
 			}
-		})
+		});
 
-		socket.on('someoneJoined', function(username){
-			addUser(username);
-		})
+		socket.on('someoneJoined', function(data){
+			addUser(data);
+		});
 
 		socket.on('someoneLeft', function(username){
 			removeUser(username);
-		})
+		});
 
+//==================================== WEBRTC =================================================
 
+		var createWebRtcConnection = function(remoteUsername){
+			if(getWebRTCData(remoteUsername) == undefined){
+				var result = webRtcAdapter.createDataChannelHost(remoteUsername);
+
+				var webRtcData = {
+					peerConnection: result.peerConnection,
+					dataChannel: result.dataChannel,
+					username: remoteUsername
+				};
+				addWebRTCData(webRtcData);
+				hookDataChannelEvents(webRtcData);
+			}
+		};
 
 		socket.on('webrtcOffer', function(data){
-			var user = getUser(data.sender);
+			var webrtcData = {username: data.sender};
 
-			user.webrtcData = {};
-			user.webrtcData.peerConnection = webRtcAdapter.onOffer(data.sender, data.description, function(dataChannel){
-				user.webrtcData.dataChannel = dataChannel;
-				hookDataChannelEvents(dataChannel, data.sender);
+			webrtcData.peerConnection = webRtcAdapter.onOffer(data.sender, data.description, function(dataChannel){
+				webrtcData.dataChannel = dataChannel;
+				hookDataChannelEvents(webrtcData);
 			});
+
+			addWebRTCData(webrtcData);
 		});
 
 		socket.on('webrtcAnswer', function(data){
-			var user = getUser(data.sender);
+			var webrtcData = getWebRTCData(data.sender);
 
-			webRtcAdapter.onAnswer(data.description, user.webrtcData.peerConnection);
+			webRtcAdapter.onAnswer(data.description, webrtcData.peerConnection);
 		});
 
 		socket.on('webrtcIceCandidate', function(data){
-			var user = getUser(data.sender);
+			var webrtcData = getWebRTCData(data.sender);
 
-			webRtcAdapter.onIceCandidate(user.webrtcData.peerConnection, data.iceCandidate);
-			user.webrtcData.ip = data.iceCandidate.candidate.match(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)[0];
+			webRtcAdapter.onIceCandidate(webrtcData.peerConnection, data.iceCandidate);
 		});
 
 		socket.on('webrtcError', function(data){
 			displayMessage("[error]", "couldnt connect with " + data.sender);
+			removeWebrtcData(data.sender);
 		});
 
 		var webrtcSend = function(evt){
 			evt.preventDefault();
 
-			data.dataChannels.forEach(function(dataChannel){
-				dataChannel.channel.send(data.messageText);
+			bindData.webrtcDatas.forEach(function(dataChannel){
+				dataChannel.dataChannel.send(bindData.messageText);
 			});
 
-			displayMessage(username, data.messageText);
+			displayMessage(bindData.username, bindData.messageText);
 
-			data.messageText = "";
-		}
-
-		var createWebRtcConnection = function(remoteUsername){
-			var user = getUser(remoteUsername);
-
-			if(getDataChannel(remoteUsername) == undefined){
-				user.webrtcData = webRtcAdapter.createDataChannelHost(remoteUsername);
-				hookDataChannelEvents(user.webrtcData.dataChannel, remoteUsername);
-			}
-		}
+			bindData.messageText = "";
+		};
 
 		var disconnectWebRtc = function(remoteUsername){
-			var dataChannel = getDataChannel(remoteUsername);
+			var webrtcData = getWebRTCData(remoteUsername);
 
-			dataChannel.channel.close();
-			removeDataChannel(remoteUsername);
-		}
+			webrtcData.dataChannel.close();
+			removeWebrtcData(remoteUsername);
+		};
 
 		var displayMessage = function(sender, message){
-			data.messageLog += sender + ": " + message + "\n"
-		}
+			bindData.messageLog += sender + ": " + message + "\n"
+		};
 
 		var webRtcAdapter = new WebRTCAdapter(
 				function(type, message){
 					socket.emit(type, message)
 				},
-				username,
+				bindData.username,
 				function(errorMessage){
 					displayMessage('[error]', errorMessage);
 				}
 		);
 
-		var hookDataChannelEvents = function(dataChannel, remoteUsername){
+		var hookDataChannelEvents = function(webrtcData){
+			var dataChannel = webrtcData.dataChannel;
+
 			dataChannel.onopen = function(){
-				displayMessage("[info]", "Connected with " + remoteUsername);
-				addDataChannel(dataChannel, remoteUsername);
-				clearUserWebrtcData(remoteUsername);
-			}
+				displayMessage("[info]", "Connected with " + webrtcData.username);
+			};
 
 			dataChannel.onclose = function(){
-				displayMessage("[info]", "Disconnected from " + remoteUsername);
-				removeDataChannel(remoteUsername);
-			}
+				displayMessage("[info]", "Disconnected from " + webrtcData.username);
+				removeWebrtcData(webrtcData.username);
+			};
 
 			dataChannel.onmessage = function(message){
-				displayMessage(remoteUsername, message.data);
-			}
-		}
+				displayMessage(webrtcData.username, message.data);
+			};
+		};
 	</script>
 
   </body>
