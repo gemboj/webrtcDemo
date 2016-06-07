@@ -1,28 +1,24 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title><%= title %></title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-	<script src="javascripts/socket.io.js"></script>
+	  <title>webrtc demo</title>
+	  <link rel='stylesheet' href='/stylesheets/style.css' />
+	  <script src="javascripts/socket.io.js"></script>
 	  <script src="javascripts/bind.js"></script>
 	  <script src="javascripts/WebRTCAdapterLight.js"></script>
   </head>
-  <body >
-    <h1><%= title %></h1>
-
+  <body>
 	<div>
-		<ul id="usersList" >
-		</ul>
-		<ul id="dataChannelsList">
-
-		</ul>
-
 		<textarea rows="20" cols="150" class="messageLog"></textarea>
-
-		<form>
-				<input class="message" type="text" />
-				<input onclick="webrtcSend()" value="Send" type="button"/>
+		<form onsubmit="webrtcSend(event)">
+			<input class="message" type="text" />
+			<input value="Send" type="submit"/>
 		</form>
+
+		<p>Users connected to server:</p>
+		<ul id="usersList" ></ul>
+		<p>Open webrtc connections:</p>
+		<ul id="dataChannelsList"></ul>
 	</div>
 	<script>
 		var username = ~~(Math.random() * 1000000);
@@ -40,17 +36,16 @@
 				dom: '#usersList',
 				transform: function (user) {
 					return '<li>User: ' + user.username +
-							'  <input value="connect" onclick="createWebRtcConnection(\'' + user.username + '\')" type="button"/>' +
-							'<input value="dicconnect" onclick="disconnectWebRtc(\'' + user.username + '\')" type="button"/></li>';
+							'  <input value="connect" onclick="createWebRtcConnection(\'' + user.username + '\')" type="button"/></li>';
 				}
 			},
-			/*dataChannels: {
+			dataChannels: {
 				dom: '#dataChannelsList',
 				transform: function(dataChannel){
 					return '<li>User: ' + dataChannel.username +
 						'<input value="dicconnect" onclick="disconnectWebRtc(\'' + dataChannel.username + '\')" type="button"/></li>';
 				}
-			},*/
+			},
 			messageText: 'input[class="message"]',
 			messageLog: 'textarea[class="messageLog"]'
 		});
@@ -94,6 +89,27 @@
 			}
 		}
 
+		var addDataChannel = function(channel, username){
+			data.dataChannels.push({channel: channel, username: username});
+		}
+
+		var getDataChannel = function(username){
+			for(var i = 0; i < data.dataChannels.length; i++){
+				if(data.dataChannels[i].username == username){
+					return data.dataChannels[i];
+				}
+			}
+
+			return undefined;
+		}
+
+		var removeDataChannel = function(username){
+			for(var i = 0; i < data.dataChannels.length; i++){
+				if(data.dataChannels[i].username == username){
+					data.dataChannels.splice(i, 1);
+				}
+			}
+		}
 
 		var socket = io.connect(undefined, { 'force new connection': true, query:  'username=' + username});
 
@@ -150,30 +166,32 @@
 			displayMessage("[error]", "couldnt connect with " + data.sender);
 		});
 
-		var webrtcSend = function(){
-			for(var userIndex in dataChannels){
-				var dataChannel = dataChannels[userIndex];
+		var webrtcSend = function(evt){
+			evt.preventDefault();
 
-				dataChannel.send(data.messageText);
-			}
+			data.dataChannels.forEach(function(dataChannel){
+				dataChannel.channel.send(data.messageText);
+			});
 
 			displayMessage(username, data.messageText);
+
+			data.messageText = "";
 		}
 
 		var createWebRtcConnection = function(remoteUsername){
 			var user = getUser(remoteUsername);
 
-			if(user.webrtcData == undefined && dataChannels[remoteUsername] == undefined){
+			if(getDataChannel(remoteUsername) == undefined){
 				user.webrtcData = webRtcAdapter.createDataChannelHost(remoteUsername);
 				hookDataChannelEvents(user.webrtcData.dataChannel, remoteUsername);
 			}
 		}
 
 		var disconnectWebRtc = function(remoteUsername){
-			var dataChannel = dataChannels[remoteUsername];
+			var dataChannel = getDataChannel(remoteUsername);
 
-			dataChannel.close();
-			delete dataChannels[remoteUsername];
+			dataChannel.channel.close();
+			removeDataChannel(remoteUsername);
 		}
 
 		var displayMessage = function(sender, message){
@@ -193,19 +211,17 @@
 		var hookDataChannelEvents = function(dataChannel, remoteUsername){
 			dataChannel.onopen = function(){
 				displayMessage("[info]", "Connected with " + remoteUsername);
-				dataChannels[remoteUsername] = dataChannel;
-
+				addDataChannel(dataChannel, remoteUsername);
 				clearUserWebrtcData(remoteUsername);
 			}
 
 			dataChannel.onclose = function(){
 				displayMessage("[info]", "Disconnected from " + remoteUsername);
-				delete dataChannels[remoteUsername];
+				removeDataChannel(remoteUsername);
 			}
 
 			dataChannel.onmessage = function(message){
-				displayMessage(remoteUsername, message.data)
-
+				displayMessage(remoteUsername, message.data);
 			}
 		}
 	</script>
