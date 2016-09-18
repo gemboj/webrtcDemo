@@ -114,7 +114,7 @@
 
 		socket.on('disconnect', function(){
 			clearUsers();
-			displayMessage('[info]', "disconnected");
+			displayMessage('[info]', "disconnected from server");
 		});
 
 		socket.on('usersList', function(data){

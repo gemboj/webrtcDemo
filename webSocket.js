@@ -17,6 +17,22 @@ module.exports = function(server){
             console.trace(error);
         });
 
+        var usernames = [];
+        for(var username in sockets){
+            usernames.push({username: username});
+
+            sockets[username].socket.emit("someoneJoined", {username: connectedUsername});
+        }
+
+        socket.emit("usersList", usernames);
+
+        sockets[connectedUsername] = {};
+        sockets[connectedUsername].socket = socket;
+
+
+
+
+
         socket.on('webrtcOffer', function(data){
             sockets[data.receiver].socket.emit('webrtcOffer', data);
         });
@@ -32,20 +48,6 @@ module.exports = function(server){
         socket.on('webrtcError', function(data){
             sockets[data.receiver].socket.emit('webrtcError', data);
         });
-
-
-
-        var usernames = [];
-        for(var username in sockets){
-            usernames.push({username: username});
-
-            sockets[username].socket.emit("someoneJoined", {username: connectedUsername});
-        }
-
-        socket.emit("usersList", usernames);
-
-        sockets[connectedUsername] = {};
-        sockets[connectedUsername].socket = socket;
     });
 
 };
